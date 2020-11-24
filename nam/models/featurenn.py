@@ -3,7 +3,12 @@ import torch.nn as nn
 
 from nam.models.base import Model
 
-from .activation import ActivationLayer
+from .activation import ExU
+
+## input : 1
+## output: 1
+
+## TODO(amr): naming layers accroding to feature_num
 
 
 class FeatureNN(Model):
@@ -22,8 +27,8 @@ class FeatureNN(Model):
       config,
       name,
       *,
-      num_units: int,
       input_shape: int,
+      num_units: int,
       dropout: float = 0.5,
       shallow: bool = True,
       feature_num: int = 0,
@@ -41,7 +46,7 @@ class FeatureNN(Model):
       activation: Activation and type of hidden unit(ExUs/Standard) used in the
         first hidden layer.
     """
-    super().__init__(config, name)
+    super(FeatureNN, self).__init__(config, name)
     self._num_units = num_units
     self._dropout = dropout
     self._feature_num = feature_num
@@ -52,24 +57,21 @@ class FeatureNN(Model):
     self.relu = nn.ReLU(inplace=True)
     self.dropout = nn.Dropout(p=self._dropout)
 
-    self.hidden_layers = [
-        ActivationLayer(
-            num_units=self._num_units,
-            input_shape=self._input_shape,
-            activation=self._activation,
-            name='activation_layer_{}'.format(self._feature_num),
-        )
-    ]
+    ## TODO(amr): self._input_shape[-1] or self._input_shape ??!
+    self.layers = [ExU(in_dim=self._input_shape, out_dim=self._num_units)]
     if not self._shallow:
-      self._h1 = nn.Linear(self._input_shape, 64)
+      self._h1 = nn.Linear(self._num_units, 64)
       self._h2 = nn.Linear(64, 32)
-      self.hidden_layers += [self._h1, self._h2]
+      self.layers += [self._h1, self._h2]
+      self.linear = nn.Linear(32, 1)
+    else:
+      self.linear = nn.Linear(self._num_units, 1)
 
-    self.linear = nn.Linear(32, 1)
+    self.hidden_layers = nn.Sequential(*self.layers)
 
   def forward(self, inputs) -> torch.Tensor:
     """Computes FeatureNN output with either evaluation or training mode."""
     for l in self.hidden_layers:
-      inputs = self.dropout(self.relu(l(inputs)))
+      inputs = self.dropout(l(inputs))
     inputs = torch.squeeze(self.linear(inputs), dim=1)
     return inputs
