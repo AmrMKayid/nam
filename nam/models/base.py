@@ -4,7 +4,7 @@ import torch
 class Model(torch.nn.Module):
 
   def __init__(self, config, name):
-    super(Model).__init__()
+    super(Model, self).__init__()
     self._config = config
     self._name = name
 

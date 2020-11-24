@@ -20,7 +20,6 @@ class NAM(Model):
       shallow: bool = True,
       feature_dropout: float = 0.0,
       dropout: float = 0.0,
-      **kwargs,
   ) -> None:
     super().__init__(config, name)
 
@@ -33,7 +32,6 @@ class NAM(Model):
     self._shallow = shallow
     self._feature_dropout = feature_dropout
     self._dropout = dropout
-    self._kwargs = kwargs
 
     ## Builds the FeatureNNs on the first call.
     self.feature_nns = [None] * self._num_inputs
@@ -41,24 +39,21 @@ class NAM(Model):
       self.feature_nns[i] = FeatureNN(
           config=config,
           name=f'FeatureNN_{i}',
+          input_shape=1,
           num_units=self._num_units[i],
-          input_shape=0,  #TODO:
           dropout=self._dropout,
           shallow=self._shallow,
           feature_num=i,
-          **self._kwargs,
       )
 
-    self._bias = torch.nn.Parameter(
-        data=torch.zeros(1,),
-        requires_grad=True,
-    )
+    self._bias = torch.nn.Parameter(data=torch.zeros(1,), requires_grad=True)
 
   def calc_outputs(self, inputs: torch.Tensor) -> Sequence[torch.Tensor]:
     """Returns the output computed by each feature net."""
-    inputs_list = torch.split(inputs, self._num_inputs, dim=-1)
+
+    inputs_tuple = torch.chunk(inputs, self._num_inputs, dim=-1)
     return [
-        self.feature_nns[i](input_i) for i, input_i in enumerate(inputs_list)
+        self.feature_nns[i](input_i) for i, input_i in enumerate(inputs_tuple)
     ]
 
   def forward(self, inputs: torch.Tensor) -> torch.Tensor:
