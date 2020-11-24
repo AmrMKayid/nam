@@ -4,6 +4,8 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 
 from nam.types import DataType
 
@@ -86,6 +88,55 @@ class NAMDataset(torch.utils.data.Dataset):
       return self.features[idx], self.weights[idx], self.targets[idx]
 
     return self.features[idx], self.targets[idx]
+
+  def data_loaders(
+      self,
+      n_splits: int = 5,
+      batch_size: int = 32,
+      shuffle: bool = True,
+      stratified: bool = True,
+      random_state: int = 42,
+  ) -> Tuple[torch.utils.data.DataLoader, ...]:
+
+    if stratified:
+      kf = StratifiedKFold(
+          n_splits=n_splits,
+          shuffle=shuffle,
+          random_state=random_state,
+      )
+    else:
+      kf = KFold(
+          n_splits=n_splits,
+          shuffle=shuffle,
+          random_state=random_state,
+      )
+
+    for i, (train_index,
+            test_index) in enumerate(kf.split(self.features, self.targets)):
+
+      train = torch.utils.data.Subset(self, train_index)
+      test = torch.utils.data.Subset(self, test_index)
+
+      trainloader = torch.utils.data.DataLoader(
+          train,
+          batch_size=self.config.batch_size,
+          shuffle=shuffle,
+          num_workers=0,
+          pin_memory=False,
+      )
+      testloader = torch.utils.data.DataLoader(
+          test,
+          batch_size=self.config.batch_size,
+          shuffle=shuffle,
+          num_workers=0,
+          pin_memory=False,
+      )
+
+      print(
+          f'Fold({i + 1,}), train: {len(trainloader.dataset)}, test: {len(testloader.dataset)}'
+      )
+
+      yield trainloader, testloader
 
   @property
   def config(self):
