@@ -91,6 +91,15 @@ def main():
       random_state=config.seed,
   )
 
+  model = NAM(
+      config=config,
+      name="NAMModel",
+      num_inputs=len(dataset[0][0]),
+      num_units=config.num_units,
+      shallow=config.shallow,
+      feature_dropout=config.feature_dropout,
+  ).to(device=config.device)
+
 
 if __name__ == "__main__":
   main()
