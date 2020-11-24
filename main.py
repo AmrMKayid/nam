@@ -5,12 +5,16 @@ import random
 from typing import Dict, Iterator, List, Tuple
 
 import numpy as np
+import pandas as pd
 import torch
 from loguru import logger
 
 from nam.config.default import defaults
 from nam.types import Config
 from nam.utils.args import parse_args
+from nam.data.base import NAMDataset
+from nam.models.featurenn import FeatureNN
+from nam.models.nam import NAM
 
 
 def get_config() -> Config:
@@ -63,6 +67,29 @@ def main():
   config = get_config()
 
   init_random_seeds(config.seed)
+
+  # Setups the dataset and the dataloader.
+
+  ## TODO: from static to args
+  csv_file = 'data/GALLUP.csv'
+  features_columns = ["income_2", "WP1219", "WP1220", "weo_gdpc_con_ppp"]
+  targets_column = ["country"]
+  weights_column = ["wgt"]
+  dataset = NAMDataset(
+      config=config,
+      csv_file=csv_file,
+      features_columns=features_columns,
+      targets_column=targets_column,
+      weights_column=weights_column,
+  )
+
+  data_loaders = dataset.data_loaders(
+      n_splits=config.n_splits,
+      batch_size=config.batch_size,
+      shuffle=config.shuffle,
+      stratified=not config.regression,
+      random_state=config.seed,
+  )
 
 
 if __name__ == "__main__":

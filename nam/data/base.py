@@ -6,9 +6,13 @@ import pandas as pd
 import torch
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.preprocessing import LabelEncoder
 
 from nam.types import DataType
+
+## Label work for features only
 
 ## TODO(amr): Target columns, weight columns, features columns
 
@@ -22,6 +26,7 @@ def preprocess_df(data: pd.DataFrame) -> pd.DataFrame:
   Returns:
       pd.DataFrame: processed dataframe with one hot encoded columns
   """
+  ## Save label encoder (Mapping -> str to int)
   return data.apply(LabelEncoder().fit_transform)
 
 
@@ -80,6 +85,8 @@ class NAMDataset(torch.utils.data.Dataset):
 
     self.transforms = transforms
 
+    self.train_subset, self.test_subset = self.get_train_test_fold()
+
   def __len__(self):
     return len(self.features)
 
@@ -89,33 +96,64 @@ class NAMDataset(torch.utils.data.Dataset):
 
     return self.features[idx], self.targets[idx]
 
+  def get_train_test_fold(
+      self,
+      fold_num: int = 1,
+      num_folds: int = 5,
+      shuffle: bool = True,
+      stratified: bool = True,
+      random_state: int = 42,
+  ) -> Tuple[torch.utils.data.Subset, ...]:
+    if stratified:
+      kf = StratifiedKFold(
+          n_splits=num_folds,
+          shuffle=shuffle,
+          random_state=random_state,
+      )
+    else:
+      kf = KFold(
+          n_splits=num_folds,
+          shuffle=shuffle,
+          random_state=random_state,
+      )
+    assert fold_num <= num_folds and fold_num > 0, 'Pass a valid fold number.'
+    for train_index, test_index in kf.split(self.features, self.targets):
+      if fold_num == 1:
+        train = torch.utils.data.Subset(self, train_index)
+        test = torch.utils.data.Subset(self, test_index)
+        return train, test
+      else:
+        fold_num -= 1
+
   def data_loaders(
       self,
       n_splits: int = 5,
       batch_size: int = 32,
+      test_size: int = 0.125,
       shuffle: bool = True,
       stratified: bool = True,
       random_state: int = 42,
   ) -> Tuple[torch.utils.data.DataLoader, ...]:
 
     if stratified:
-      kf = StratifiedKFold(
+      shuffle_split = StratifiedShuffleSplit(
           n_splits=n_splits,
-          shuffle=shuffle,
+          test_size=test_size,
           random_state=random_state,
       )
     else:
-      kf = KFold(
+      shuffle_split = ShuffleSplit(
           n_splits=n_splits,
-          shuffle=shuffle,
+          test_size=test_size,
           random_state=random_state,
       )
 
-    for i, (train_index,
-            test_index) in enumerate(kf.split(self.features, self.targets)):
+    for i, (train_index, validation_index) in enumerate(
+        shuffle_split.split(self.features[self.train_subset.indices],
+                            self.targets[self.train_subset.indices])):
 
       train = torch.utils.data.Subset(self, train_index)
-      test = torch.utils.data.Subset(self, test_index)
+      val = torch.utils.data.Subset(self, validation_index)
 
       trainloader = torch.utils.data.DataLoader(
           train,
@@ -124,8 +162,8 @@ class NAMDataset(torch.utils.data.Dataset):
           num_workers=0,
           pin_memory=False,
       )
-      testloader = torch.utils.data.DataLoader(
-          test,
+      valloader = torch.utils.data.DataLoader(
+          val,
           batch_size=self.config.batch_size,
           shuffle=shuffle,
           num_workers=0,
@@ -133,10 +171,10 @@ class NAMDataset(torch.utils.data.Dataset):
       )
 
       print(
-          f'Fold({i + 1,}), train: {len(trainloader.dataset)}, test: {len(testloader.dataset)}'
+          f'Fold({i + 1,}), train: {len(trainloader.dataset)}, test: {len(valloader.dataset)}'
       )
 
-      yield trainloader, testloader
+      yield trainloader, valloader
 
   @property
   def config(self):
