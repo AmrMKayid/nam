@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import LabelEncoder
 
 from nam.types import DataType
 
@@ -13,16 +14,15 @@ from nam.types import DataType
 
 
 def preprocess_df(data: pd.DataFrame) -> pd.DataFrame:
-  x_train, y_train = [], []
-  for index, row in data.iterrows():
-    x_train.append(torch.Tensor(row.iloc[:-1]))
-    y_train.append(row.iloc[-1])
+  """One Hot Encoding.
 
-  x_train = torch.stack(x_train)
-  y_train = torch.LongTensor(y_train)
+  Args:
+      data (pd.DataFrame): unprocessed dataframe
 
-  data['x_train'], data['y_train'] = x_train, y_train
-  return data
+  Returns:
+      pd.DataFrame: processed dataframe with one hot encoded columns
+  """
+  return data.apply(LabelEncoder().fit_transform)
 
 
 class NAMDataset(torch.utils.data.Dataset):
@@ -38,7 +38,7 @@ class NAMDataset(torch.utils.data.Dataset):
       header: str = 'infer',
       names: list = None,
       delim_whitespace: bool = False,
-      preprocess_fn: Callable = None,
+      preprocess_fn: Callable = preprocess_df,
       transforms: Callable = None,
   ) -> None:
     """Custom dataset for csv files.
