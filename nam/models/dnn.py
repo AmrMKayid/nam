@@ -15,13 +15,13 @@ class DNN(Model):
   def __init__(
       self,
       config,
-      name: str,
+      name: str = "DNNModel",
       *,
-      input_shape: int,
+      input_shape: int = 1,
       output_shape: int = 1,
       dropout: float = 0.15,
   ) -> None:
-    super(DNN).__init__(config, name)
+    super(DNN, self).__init__(config, name)
 
     self.layers = []
     self.dropout = nn.Dropout(dropout)
