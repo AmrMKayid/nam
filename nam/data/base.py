@@ -96,8 +96,9 @@ class NAMDataset(torch.utils.data.Dataset):
     return len(self.features)
 
   def __getitem__(self, idx: int) -> Tuple[np.array, ...]:
-    if self.weights_column is not None:
-      return self.features[idx], self.weights[idx], self.targets[idx]
+    ##TODO(amr): discuss weights columns with Nick and how can we use it
+    # if self.weights_column is not None:
+    #   return self.features[idx], self.weights[idx], self.targets[idx]
 
     return self.features[idx], self.targets[idx]
 
