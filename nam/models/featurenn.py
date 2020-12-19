@@ -42,7 +42,7 @@ class FeatureNN(Model):
       h1 = nn.Linear(self._num_units, 64)
       h2 = nn.Linear(64, 32)
       linear = nn.Linear(32, 1)
-      self.layers += [h1, h2, linear]
+      layers += [h1, h2, linear]
     else:
       linear = nn.Linear(self._num_units, 1)
       layers += [linear]
