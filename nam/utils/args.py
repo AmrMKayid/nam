@@ -6,7 +6,7 @@ def parse_args() -> argparse.Namespace:
 
   parser.add_argument(
       '--training_epochs',
-      default=None,
+      default=10,
       type=str,
       help='The number of epochs to run training for.',
   )
@@ -35,8 +35,8 @@ def parse_args() -> argparse.Namespace:
       help='Hyperparameter: batch size.',
   )
   parser.add_argument(
-      '--logdir',
-      default=None,
+      '--output_dir',
+      default="output",
       type=str,
       help='Path to dir where to store summaries.',
   )
@@ -175,5 +175,5 @@ def parse_args() -> argparse.Namespace:
       help='Number of N folds',
   )
 
-  FLAGS = parser.parse_args()
+  FLAGS = parser.parse_args([])
   return FLAGS
