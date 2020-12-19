@@ -7,7 +7,7 @@
 ![PyPI Python Version](https://img.shields.io/pypi/pyversions/nam)
 ![PyPI version](https://badge.fury.io/py/nam.svg)
 [![arXiv](https://img.shields.io/badge/arXiv-2004.13912-b31b1b.svg)](https://arxiv.org/abs/2004.13912)
-[![GitHub license](https://img.shields.io/github/license/AmrMKayid/nam)]
+![GitHub license](https://img.shields.io/github/license/AmrMKayid/nam)
 
 NAM is a library for generalized additive models research.
 Neural Additive Models (NAMs) combine some of the expressivity of DNNs with the inherent intelligibility of generalized additive models. NAMs learn a linear combination of neural networks that each attend to a single input feature. These networks are trained jointly and can learn arbitrarily complex relationships between their input feature and the output.
