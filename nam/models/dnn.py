@@ -19,14 +19,12 @@ class DNN(Model):
       *,
       input_shape: int = 1,
       output_shape: int = 1,
-      dropout: float = 0.15,
   ) -> None:
     super(DNN, self).__init__(config, name)
 
     self.layers = []
-    self.dropout = nn.Dropout(dropout)
+    self.dropout = nn.Dropout(p=self.config.dropout)
 
-    ## TODO: check input size
     self.layers.append(nn.Linear(input_shape, 100, bias=True))
     self.layers.append(nn.ReLU())
     self.layers.append(self.dropout)
