@@ -11,6 +11,9 @@ class Model(torch.nn.Module):
   def forward(self):
     raise NotImplementedError
 
+  def __str__(self):
+    return f'{self.__class__.__name__}(name={self._name})'
+
   @property
   def config(self):
     return self._config
