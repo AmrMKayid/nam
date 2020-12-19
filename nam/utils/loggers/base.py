@@ -18,32 +18,18 @@ class Logger:
       log_dir: str,
   ) -> None:
     self._logger = logger
+    self.info = self._logger.info
+    self.trace = self._logger.trace
+    self.debug = self._logger.debug
+    self.warning = self._logger.warning
+    self.success = self._logger.success
+    self.error = self._logger.error
+    self.critical = self._logger.critical
     self._logger.add(f"{log_dir}/out.log")
 
   def write(self, data: LoggingData):
     """Writes `data` to destination (file, terminal, database, etc)."""
     raise NotImplementedError
-
-  def trace(self, *args):
-    self._logger.trace(*args)
-
-  def debug(self, *args):
-    self._logger.debug(*args)
-
-  def info(self, *args):
-    self._logger.info(*args)
-
-  def success(self, *args):
-    self._logger.success(*args)
-
-  def warning(self, *args):
-    self._logger.warning(*args)
-
-  def error(self, *args):
-    self._logger.error(*args)
-
-  def critical(self, *args):
-    self._logger.critical(*args)
 
   @property
   def logger(self):
