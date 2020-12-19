@@ -2,7 +2,7 @@
 
   **[Overview](#overview)**
 | **[Installation](#installation)**
-| **[Paper](https://arxiv.org/pdf/2006.14911.pdf)**
+| **[Paper](https://arxiv.org/pdf/2004.13912.pdf)**
 
 ![PyPI Python Version](https://img.shields.io/pypi/pyversions/nam)
 ![PyPI version](https://badge.fury.io/py/nam.svg)
@@ -99,6 +99,15 @@ optional arguments:
 
 
 ## Citing NAM
+
+
+```bibtex
+@misc{kayid2020nams,
+  title={Neural additive models Library},
+  author={Kayid, Amr and Frosst, Nicholas and Hinton, Geoffrey E},
+  year={2020}
+}
+```
 
 ```bibtex
 @article{agarwal2020neural,
