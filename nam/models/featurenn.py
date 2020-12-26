@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from nam.models.base import Model
 
@@ -31,20 +32,17 @@ class FeatureNN(Model):
     self._feature_num = feature_num
     self._activation = self.config.activation
 
-    self.relu = nn.ReLU(inplace=True)
-    self.dropout = nn.Dropout(p=self.config.dropout)
-
     layers = [ExU(in_features=self._input_shape, out_features=self._num_units)]
 
     ## shallow: If True, then a shallow network with a single hidden layer is created,
     ## otherwise, a network with 3 hidden layers is created.
     if not self.config.shallow:
-      h1 = nn.Linear(self._num_units, 64)
-      h2 = nn.Linear(64, 32)
-      linear = nn.Linear(32, 1)
+      h1 = ExU(self._num_units, 64)
+      h2 = ExU(64, 32)
+      linear = ExU(32, 1)
       layers += [h1, h2, linear]
     else:
-      linear = nn.Linear(self._num_units, 1)
+      linear = ExU(self._num_units, 1)
       layers += [linear]
 
     self.model = nn.Sequential(*layers)
@@ -52,6 +50,7 @@ class FeatureNN(Model):
   def forward(self, inputs) -> torch.Tensor:
     """Computes FeatureNN output with either evaluation or training mode."""
     for layer in self.model:
-      inputs = self.dropout(layer(inputs))
-    outputs = torch.squeeze(inputs, dim=1)
+      inputs = F.dropout(layer(inputs), p=self.config.dropout)
+    # outputs = torch.squeeze(inputs, dim=1)
+    outputs = inputs
     return outputs
