@@ -6,9 +6,9 @@ import torch
 
 def get_num_units(
     config,
-    train_dataloader: torch.utils.data.DataLoader,
+    dataloader: torch.utils.data.DataLoader,
 ) -> List:
-  features, _ = next(iter(train_dataloader))
+  features, targets, *weights = next(iter(dataloader))
 
   num_unique_vals = [
       len(np.unique(features[:, i])) for i in range(features.shape[1])
