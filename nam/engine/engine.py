@@ -55,12 +55,7 @@ class Engine(pl.LightningModule):
     # predictions = self.model(inputs)
     loss = self.loss(inputs, targets.squeeze())
 
-    self.log('train_loss',
-             loss,
-             on_step=True,
-             on_epoch=True,
-             prog_bar=True,
-             logger=True)
+    self.log('train_loss', loss)
 
     return {
         'loss': loss,
@@ -76,12 +71,7 @@ class Engine(pl.LightningModule):
     # predictions = self.model(inputs)
     loss = self.loss(inputs, targets.squeeze())
 
-    self.log('val_loss',
-             loss,
-             on_step=True,
-             on_epoch=True,
-             prog_bar=True,
-             logger=True)
+    self.log('val_loss', loss)
 
     return loss
 
@@ -95,11 +85,6 @@ class Engine(pl.LightningModule):
     # predictions = self.model(inputs)
     loss = self.loss(inputs, targets.squeeze())
 
-    self.log('test_loss',
-             loss,
-             on_step=True,
-             on_epoch=True,
-             prog_bar=True,
-             logger=True)
+    self.log('test_loss', loss)
 
     return loss
