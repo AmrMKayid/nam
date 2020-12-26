@@ -27,8 +27,6 @@ class NAM(Model):
     elif isinstance(num_units, int):
       self._num_units = [num_units for _ in range(self._num_inputs)]
 
-    self._feature_dropout = self.config.feature_dropout
-
     ## Builds the FeatureNNs on the first call.
     self.feature_nns = nn.Sequential()
     for i in range(self._num_inputs):
@@ -55,6 +53,6 @@ class NAM(Model):
   def forward(self, inputs: torch.Tensor) -> torch.Tensor:
     individual_outputs = self.calc_outputs(inputs)
     stacked_out = torch.stack(individual_outputs, dim=-1)
-    dropout_out = F.dropout(stacked_out, p=self._feature_dropout)
+    dropout_out = F.dropout(stacked_out, p=self.config.feature_dropout)
     out = torch.sum(dropout_out, dim=-1)
     return out + self._bias
