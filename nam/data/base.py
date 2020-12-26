@@ -82,6 +82,7 @@ class NAMDataset(torch.utils.data.Dataset):
       self.targets = torch.tensor(
           self.oh_encoder.fit_transform(
               self.data[targets_column].copy()).toarray())
+      self.categories = self.oh_encoder.categories_
     else:
       self.targets = torch.tensor(
           self.data[targets_column].copy().to_numpy()).float()
@@ -96,12 +97,22 @@ class NAMDataset(torch.utils.data.Dataset):
     return len(self.features)
 
   def __getitem__(self, idx: int) -> Tuple[np.array, ...]:
-    ##TODO(amr): discuss weights columns with Nick and how can we use it
-    # if self.weights_column is not None:
-    #   return self.features[idx], self.weights[idx], self.targets[idx]
+    if self.weights_column is not None:
+      return self.features[idx], self.targets[idx], self.weights[idx]
 
     return self.features[idx], self.targets[idx]
 
   @property
   def config(self):
     return self._config
+
+  def __repr__(self):
+    if self.weights_column is not None:
+      return (
+          f'NAMDatasetSample(\n\tfeatures={self.features[np.random.randint(len(self))]}, '
+          + f'\n\ttargets={self.targets[np.random.randint(len(self))]}, ' +
+          f'\n\tweights={self.weights[np.random.randint(len(self))]}\n)')
+
+    return (
+        f'NAMDatasetSample(features={self.features[np.random.randint(len(self))]}, '
+        + f'targets={self.targets[np.random.randint(len(self))]})')
