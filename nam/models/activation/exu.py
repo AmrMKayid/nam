@@ -20,14 +20,13 @@ class ExU(torch.nn.Module):
   def reset_parameters(self) -> None:
     ## Page(4): initializing the weights using a normal distribution
     ##          N(x; 0:5) with x 2 [3; 4] works well in practice.
-    self.weights = torch.nn.init.trunc_normal_(self.weights, mean=4.0, std=0.5)
-    self.bias = torch.nn.init.trunc_normal_(self.bias, std=0.5)
+    torch.nn.init.trunc_normal_(self.weights, mean=4.0, std=0.5)
+    torch.nn.init.trunc_normal_(self.bias, std=0.5)
 
   def forward(
       self,
       inputs: torch.Tensor,
   ) -> torch.Tensor:
-    # print(inputs, inputs.shape)
     output = (inputs - self.bias).matmul(torch.exp(self.weights).t())
     output = F.relu(output)  # ReLU activations capped at n (ReLU-n)
 
