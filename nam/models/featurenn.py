@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from nam.models.base import Model
 
-from .activation import ExU
+from .activation import ExU, LinReLU
 
 
 class FeatureNN(Model):
@@ -32,18 +32,13 @@ class FeatureNN(Model):
     self._feature_num = feature_num
     self._activation = self.config.activation
 
-    layers = [ExU(in_features=self._input_shape, out_features=self._num_units)]
+    hidden_sizes = [self._input_shape, self._num_units
+                   ] + self.config.hidden_sizes + [1]
 
-    ## shallow: If True, then a shallow network with a single hidden layer is created,
-    ## otherwise, a network with 3 hidden layers is created.
-    if not self.config.shallow:
-      h1 = ExU(self._num_units, 64)
-      h2 = ExU(64, 32)
-      linear = ExU(32, 1)
-      layers += [h1, h2, linear]
-    else:
-      linear = ExU(self._num_units, 1)
-      layers += [linear]
+    layers = []
+    layer = ExU if self.config.activation.lower() == 'exu' else LinReLU
+    for in_features, out_features in zip(hidden_sizes, hidden_sizes[1:]):
+      layers.append(layer(in_features=in_features, out_features=out_features))
 
     self.model = nn.Sequential(*layers)
 

@@ -44,11 +44,13 @@ class NAM(Model):
 
   def calc_outputs(self, inputs: torch.Tensor) -> Sequence[torch.Tensor]:
     """Returns the output computed by each feature net."""
-    fnn = lambda index: dict(self.feature_nns.named_children())[
-        f"FeatureNN_{index}"]
+    fnns = dict(self.feature_nns.named_children())
 
     inputs_tuple = torch.chunk(inputs, self._num_inputs, dim=-1)
-    return [fnn(index)(input_i) for index, input_i in enumerate(inputs_tuple)]
+    return [
+        fnns[f"FeatureNN_{index}"](input_i)
+        for index, input_i in enumerate(inputs_tuple)
+    ]
 
   def forward(self, inputs: torch.Tensor) -> torch.Tensor:
     individual_outputs = self.calc_outputs(inputs)

@@ -14,7 +14,9 @@ class ExU(torch.nn.Module):
     self.in_features = in_features
     self.out_features = out_features
     self.weights = Parameter(torch.Tensor(out_features, in_features))
-    self.bias = Parameter(torch.Tensor(in_features))
+
+    ## bias should match in_features? or as regular output features?
+    self.bias = Parameter(torch.Tensor(out_features))
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -27,10 +29,15 @@ class ExU(torch.nn.Module):
       self,
       inputs: torch.Tensor,
   ) -> torch.Tensor:
-    output = (inputs - self.bias).matmul(torch.exp(self.weights).t())
+    ## TODO(amr): check this with nick?!
+    ## input shape and bias differ?
+    ## e.g. inputs(13, 128) but bias is (1, 128)
+    # output = (inputs - self.bias).matmul(torch.exp(self.weights).t())
+
+    output = (inputs @ torch.exp(self.weights).t()) - self.bias
     output = F.relu(output)  # ReLU activations capped at n (ReLU-n)
 
     return output
 
-  def __repr__(self):
-    return f'ExU(in_features={self.in_features}, out_features={self.out_features})'
+  def extra_repr(self):
+    return f'in_features={self.in_features}, out_features={self.out_features}'
