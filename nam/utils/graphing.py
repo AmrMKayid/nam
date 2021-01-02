@@ -16,11 +16,11 @@ def get_unique_features(X_train):
 
 def get_model_outputs(unique_features, model):
     feature_contributions = []
-    for feature_i in range(len(unique_features[0])):
+    for feature_i in range(len(unique_features)):
         feature_contributions.append(
             dict(model.feature_nns.named_children())[f"FeatureNN_{feature_i}"](torch.unsqueeze(
                 unique_features[feature_i], 1)))
-    return unique_features
+    return feature_contributions
 
 
 def shade_by_density_blocks(ax, single_feature_data, unique_x_data, n_blocks=50, color=[0.9, 0.5, 0.5]):
@@ -50,16 +50,17 @@ def shade_by_density_blocks(ax, single_feature_data, unique_x_data, n_blocks=50,
         ax.add_patch(rect)
 
 
-def plot_line(ax, unique_features, feature_contributions, alpha=1.0, color_base=[0.3, 0.4, 0.9, 0.2]):
+def plot_line(ax, unique_features, feature_contributions, alpha=0.5, color_base=[0.3, 0.4, 0.9, 0.2]):
+    feature_contributions = feature_contributions - np.mean(feature_contributions)
     if len(unique_features) < 10:
         unique_features = np.round(unique_features, decimals=1)
         if len(unique_features) <= 2:
             step_loc = "mid"
         else:
             step_loc = "post"
-        ax.step(unique_features, feature_contributions, color=color_base, where=step_loc, alpha=alpha)
+        ax.step(unique_features, feature_contributions, color=color_base, alpha=alpha, where=step_loc)
     else:
-        ax.plot(unique_features, feature_contributions, alpha=alpha)
+        ax.plot(unique_features, feature_contributions, color=color_base, alpha=alpha)
 
 
 def nam_plot(X_train, models, n_columns=3):
@@ -71,8 +72,11 @@ def nam_plot(X_train, models, n_columns=3):
     for i in range(n_columns * n_rows):
         ax = axs.reshape(-1)[i]
         if i < len(unique_features):
-            for m in range(len(unique_model_outputs))
-                plot_line(ax, unique_features[i].detach().numpy(), unique_model_outputs[m][i].detach().numpy())
+            for m in range(len(unique_model_outputs)):
+                plot_line(ax,
+                          unique_features[i].detach().numpy(),
+                          unique_model_outputs[m][i].detach().numpy(),
+                          alpha=4 / len(models))
             shade_by_density_blocks(ax, features[i].detach().numpy(), unique_features[i].detach().numpy())
         else:
             ax.set_visible(False)
