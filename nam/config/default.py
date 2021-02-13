@@ -18,6 +18,7 @@ def defaults() -> Config:
       ],
       ## Activation choice
       activation='exu',  ## Either `ExU` or `Relu`
+      optimizer='adam',
 
       ## regularization_techniques
       dropout=0.5,
