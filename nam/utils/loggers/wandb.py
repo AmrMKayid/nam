@@ -1,16 +1,28 @@
 """Utilities for logging to Weights & Biases."""
 
 import wandb
-from absl import flags
-from ray.tune.integration.wandb import WandbLogger
+import torch
 
 from nam.utils.loggers import base
 
-wandb.init(project="nam", config=flags.FLAGS)
 
-
-class WandBLogger(base.Logger, WandbLogger):
+class WandBLogger(base.Logger):
   """Logs to a `wandb` dashboard."""
 
-  def write(self, values: base.LoggingData) -> None:
-    wandb.log(values)
+  def __init__(
+      self,
+      project: str = "nam",
+      configs: dict = None,
+  ) -> None:
+    super().__init__(log_dir=configs.output_dir)
+    wandb.init(project=project, config=configs)
+
+  def write(self, data: base.LoggingData) -> None:
+    wandb.log(data)
+
+  def watch(
+      self,
+      model: torch.nn.Module,
+      **kwargs: dict,
+  ) -> None:
+    wandb.watch(model, kwargs)
