@@ -15,15 +15,15 @@ class LinReLU(torch.nn.Module):
     super(LinReLU, self).__init__()
     self.in_features = in_features
     self.out_features = out_features
-    self.weight = Parameter(torch.Tensor(out_features, in_features))
-    self.bias = Parameter(torch.Tensor(out_features))
+    self.weight = Parameter(torch.Tensor(out_features, in_features),
+                            requires_grad=True)
+    self.bias = Parameter(torch.Tensor(out_features), requires_grad=True)
 
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
     nn.init.kaiming_normal_(self.weight)
-    if self.bias is not None:
-      nn.init.zeros_(self.bias)
+    nn.init.constant_(self.bias, 0.1)
 
   def forward(
       self,
@@ -35,5 +35,4 @@ class LinReLU(torch.nn.Module):
     return output
 
   def extra_repr(self):
-    return 'in_features={}, out_features={}, bias={}'.format(
-        self.in_features, self.out_features, self.bias is not None)
+    return f'in_features={self.in_features}, out_features={self.out_features}'
