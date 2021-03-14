@@ -13,10 +13,13 @@ class ExU(torch.nn.Module):
     super(ExU, self).__init__()
     self.in_features = in_features
     self.out_features = out_features
-    self.weights = Parameter(torch.Tensor(out_features, in_features))
+    # self.weights = Parameter(torch.Tensor(out_features, in_features),
+    #                          requires_grad=True)
+    self.weights = Parameter(torch.Tensor(in_features, out_features),
+                             requires_grad=True)
 
     ## bias should match in_features? or as regular output features?
-    self.bias = Parameter(torch.Tensor(in_features))
+    self.bias = Parameter(torch.Tensor(in_features), requires_grad=True)
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
@@ -28,12 +31,19 @@ class ExU(torch.nn.Module):
   def forward(
       self,
       inputs: torch.Tensor,
+      n: int = 1,
   ) -> torch.Tensor:
     ## TODO(amr): check this with nick?!
     ## input shape and bias differ?
     ## e.g. inputs(13, 128) but bias is (1, 128)
-    output = (inputs - self.bias) @ (torch.exp(self.weights).t())
-    output = F.relu(output)  # ReLU activations capped at n (ReLU-n)
+    # print(f'Inputs: {inputs.shape}, weights: {self.weights.shape}')
+    # print(
+    #     f'weights: {torch.exp(self.weights).shape}, Inputs: {(inputs - self.bias).shape}'
+    # )
+    output = (inputs - self.bias).matmul(torch.exp(self.weights))
+
+    # ReLU activations capped at n (ReLU-n)
+    output = torch.clamp(F.relu(output), 0, n)
 
     return output
 

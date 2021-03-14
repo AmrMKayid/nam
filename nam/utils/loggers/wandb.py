@@ -1,8 +1,8 @@
 """Utilities for logging to Weights & Biases."""
 
-import wandb
 import torch
 
+import wandb
 from nam.utils.loggers import base
 
 

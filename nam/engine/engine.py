@@ -46,10 +46,7 @@ class Engine(pl.LightningModule):
     return optimizer
 
   def training_step(self, batch, batch_idx):
-    if len(batch) > 2:
-      inputs, targets, weights = batch
-    else:
-      inputs, targets = batch
+    inputs, targets, *weights = batch
 
     inputs = inputs.view(inputs.size(0), -1)
     # predictions = self.model(inputs)
@@ -57,15 +54,10 @@ class Engine(pl.LightningModule):
 
     self.log('train_loss', loss)
 
-    return {
-        'loss': loss,
-    }
+    return {'training_loss': loss}
 
   def validation_step(self, batch, batch_idx):
-    if len(batch) > 2:
-      inputs, targets, weights = batch
-    else:
-      inputs, targets = batch
+    inputs, targets, *weights = batch
 
     inputs = inputs.view(inputs.size(0), -1)
     # predictions = self.model(inputs)
@@ -73,13 +65,10 @@ class Engine(pl.LightningModule):
 
     self.log('val_loss', loss)
 
-    return loss
+    return {'val_loss': loss}
 
   def test_step(self, batch, batch_idx):
-    if len(batch) > 2:
-      inputs, targets, weights = batch
-    else:
-      inputs, targets = batch
+    inputs, targets, *weights = batch
 
     inputs = inputs.view(inputs.size(0), -1)
     # predictions = self.model(inputs)
@@ -87,4 +76,4 @@ class Engine(pl.LightningModule):
 
     self.log('test_loss', loss)
 
-    return loss
+    return {'test_loss': loss}

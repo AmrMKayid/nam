@@ -6,6 +6,7 @@ from nam.models.base import Model
 
 from .activation import ExU
 from .activation import LinReLU
+from .utils import init_weights
 
 
 class FeatureNN(Model):
@@ -32,7 +33,7 @@ class FeatureNN(Model):
     self._num_units = num_units
     self._feature_num = feature_num
 
-    hidden_sizes = [self._num_units] + self.config.hidden_sizes + [1]
+    hidden_sizes = [self._num_units] + self.config.hidden_sizes
 
     layers = []
 
@@ -40,9 +41,12 @@ class FeatureNN(Model):
     layers.append(ExU(in_features=input_shape, out_features=num_units))
 
     for in_features, out_features in zip(hidden_sizes, hidden_sizes[1:]):
-      layers.append(LinReLU(in_features=in_features, out_features=out_features))
+      layers.append(nn.Linear(in_features, out_features, bias=True))
+      layers.append(nn.ReLU())
+    layers.append(nn.Linear(in_features=hidden_sizes[-1], out_features=1))
 
     self.model = nn.Sequential(*layers)
+    # self.apply(init_weights)
 
   def forward(self, inputs) -> torch.Tensor:
     """Computes FeatureNN output with either evaluation or training mode."""

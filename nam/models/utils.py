@@ -2,6 +2,13 @@ from typing import List
 
 import numpy as np
 import torch
+import torch.nn as nn
+
+
+def init_weights(m):
+  if type(m) == nn.Linear:
+    torch.nn.init.kaiming_normal_(m.weight)
+    m.bias.data.fill_(0.01)
 
 
 def get_num_units(
