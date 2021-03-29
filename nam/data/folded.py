@@ -1,7 +1,10 @@
 from typing import Callable
 from typing import Tuple
+from typing import Union
 
+import pandas as pd
 import torch
+from loguru import logger
 from sklearn.model_selection import KFold
 from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import StratifiedKFold
@@ -11,47 +14,37 @@ from .base import NAMDataset
 
 
 class FoldedDataset(NAMDataset):
-  ##TODO: K-fold
 
   def __init__(
       self,
       *,
       config,
-      csv_file: str,
+      file_path: Union[str, pd.DataFrame],
       features_columns: list,
       targets_column: str,
       weights_column: str = None,
-      header: str = 'infer',
-      names: list = None,
-      delim_whitespace: bool = False,
-      one_hot: bool = False,
-      preprocess_fn: Callable = None,
       transforms: Callable = None,
   ) -> None:
     super(FoldedDataset, self).__init__(
         config=config,
-        csv_file=csv_file,
+        file_path=file_path,
         features_columns=features_columns,
         targets_column=targets_column,
         weights_column=weights_column,
-        header=header,
-        names=names,
-        delim_whitespace=delim_whitespace,
-        one_hot=one_hot,
-        preprocess_fn=preprocess_fn,
         transforms=transforms,
     )
 
-    self.train_subset, self.test_subset = self.get_train_test_fold()
+    self.train_subset, self.test_subset = self.get_folds()
 
-  def get_train_test_fold(
+  def get_folds(
       self,
       fold_num: int = 1,
       num_folds: int = 5,
       shuffle: bool = True,
-      stratified: bool = True,
       random_state: int = 42,
   ) -> Tuple[torch.utils.data.Subset, ...]:
+    stratified = not self.config.regression
+
     if stratified:
       kf = StratifiedKFold(
           n_splits=num_folds,
@@ -73,16 +66,15 @@ class FoldedDataset(NAMDataset):
       else:
         fold_num -= 1
 
-  def data_loaders(
+  def train_dataloaders(
       self,
       n_splits: int = 5,
       batch_size: int = 32,
       test_size: int = 0.125,
       shuffle: bool = True,
-      stratified: bool = True,
       random_state: int = 42,
   ) -> Tuple[torch.utils.data.DataLoader, ...]:
-
+    stratified = not self.config.regression
     if stratified:
       shuffle_split = StratifiedShuffleSplit(
           n_splits=n_splits,
@@ -106,19 +98,28 @@ class FoldedDataset(NAMDataset):
           train,
           batch_size=self.config.batch_size,
           shuffle=shuffle,
-          num_workers=0,
+          num_workers=self.config.num_workers,
           pin_memory=False,
       )
       valloader = torch.utils.data.DataLoader(
           val,
           batch_size=self.config.batch_size,
-          shuffle=shuffle,
-          num_workers=0,
+          shuffle=False,
+          num_workers=self.config.num_workers,
           pin_memory=False,
       )
 
-      print(
+      logger.info(
           f'Fold[{i + 1}]: train: {len(trainloader.dataset)}, val: {len(valloader.dataset)}'
       )
 
       yield trainloader, valloader
+
+  def test_dataloaders(self) -> torch.utils.data.DataLoader:
+    return torch.utils.data.DataLoader(
+        self.test_subset,
+        batch_size=self.config.batch_size,
+        shuffle=False,
+        num_workers=self.config.num_workers,
+        pin_memory=False,
+    )
