@@ -37,7 +37,7 @@ def defaults() -> Config:
       num_splits=3,
       fold_num=1,
       shuffle=True,
-      regression=False,
+      regression=True,
       debug=False,
       use_dnn=False,
       patience=10,  ## For early stopping
