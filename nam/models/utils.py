@@ -13,10 +13,8 @@ def init_weights(m):
 
 def get_num_units(
     config,
-    dataloader: torch.utils.data.DataLoader,
+    features: torch.Tensor,
 ) -> List:
-  features, targets, *weights = next(iter(dataloader))
-
   num_unique_vals = [
       len(np.unique(features[:, i])) for i in range(features.shape[1])
   ]
