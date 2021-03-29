@@ -17,3 +17,7 @@ class Model(torch.nn.Module):
   @property
   def config(self):
     return self._config
+
+  @property
+  def name(self):
+    return self._name
