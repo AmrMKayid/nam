@@ -1,29 +1,15 @@
-from typing import Callable
-
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from sklearn import metrics as sk_metrics
 
 
-def accuracy(
-    model: nn.Module,
-    inputs: torch.Tensor,
-    targets: torch.Tensor,
-) -> torch.Tensor:
+def accuracy(logits: torch.Tensor, targets: torch.Tensor) -> float:
   """Accuracy for a binary classification model."""
-  pred = model(inputs)
-  binary_pred = pred > 0
-  correct = binary_pred == (targets > 0.5)
-  return correct.mean().float()
+  return (((targets.view(-1) > 0) == (logits.view(-1) > 0.5)).sum() /
+          targets.numel()).item()
 
 
-def rmse(
-    model: nn.Module,
-    inputs: torch.Tensor,
-    targets: torch.Tensor,
-) -> float:
+def rmse(logits: torch.Tensor, targets: torch.Tensor) -> float:
   """Root mean squared error between true and predicted values."""
-  pred = model(inputs)
-  return float(np.sqrt(sk_metrics.mean_squared_error(targets, pred)))
+  return ((logits.view(-1) - targets.view(-1)).abs().sum() /
+          logits.numel()).item()
