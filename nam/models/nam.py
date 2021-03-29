@@ -52,9 +52,9 @@ class NAM(Model):
         for index, input_i in enumerate(inputs_tuple)
     ]
 
-  def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+  def forward(self, inputs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     individual_outputs = self.calc_outputs(inputs)
     stacked_out = torch.stack(individual_outputs, dim=-1)
     dropout_out = F.dropout(stacked_out, p=self.config.feature_dropout)
     out = torch.sum(dropout_out, dim=-1)
-    return out + self._bias
+    return out + self._bias, dropout_out
