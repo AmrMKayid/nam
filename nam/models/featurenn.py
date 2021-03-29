@@ -40,12 +40,14 @@ class FeatureNN(Model):
     ## First layer is ExU
     layers.append(ExU(in_features=input_shape, out_features=num_units))
 
+    ## Hidden Layers
     for in_features, out_features in zip(hidden_sizes, hidden_sizes[1:]):
-      layers.append(nn.Linear(in_features, out_features, bias=True))
-      layers.append(nn.ReLU())
+      layers.append(LinReLU(in_features, out_features))
+
+    ## Last Linear Layer
     layers.append(nn.Linear(in_features=hidden_sizes[-1], out_features=1))
 
-    self.model = nn.Sequential(*layers)
+    self.model = nn.ModuleList(layers)
     # self.apply(init_weights)
 
   def forward(self, inputs) -> torch.Tensor:
