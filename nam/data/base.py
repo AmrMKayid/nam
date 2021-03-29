@@ -1,25 +1,13 @@
 from typing import Callable
 from typing import Tuple
+from typing import Union
 
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.preprocessing import OneHotEncoder
 
-
-def preprocess_df(data: pd.DataFrame) -> pd.DataFrame:
-  """One Hot Encoding.
-
-  Args:
-      data (pd.DataFrame): unprocessed dataframe
-
-  Returns:
-      pd.DataFrame: processed dataframe with one hot encoded columns
-  """
-  ## Save label encoder (Mapping -> str to int)
-  # label_encoder, oh_encoder = LabelEncoder(), OneHotEncoder()
-  # return data.apply(label_encoder.fit_transform)
-  return data
+from .utils import read_dataset
+from .utils import transform_data
 
 
 class NAMDataset(torch.utils.data.Dataset):
@@ -28,29 +16,20 @@ class NAMDataset(torch.utils.data.Dataset):
       self,
       *,
       config,
-      csv_file: str,
+      file_path: Union[str, pd.DataFrame],
       features_columns: list,
       targets_column: str,
       weights_column: str = None,
-      header: str = 'infer',
-      names: list = None,
-      delim_whitespace: bool = False,
-      one_hot: bool = False,
-      preprocess_fn: Callable = None,
       transforms: Callable = None,
   ) -> None:
     """Custom dataset for csv files.
 
     Args:
         config ([type]): [description]
-        csv_file (str): [description]
+        file_path (str): [description]
         features_columns (list): [description]
         targets_column (str): [description]
         weights_column (str, optional): [description]. Defaults to None.
-        header (str, optional): [description]. Defaults to 'infer'.
-        names (list, optional): [description]. Defaults to None.
-        delim_whitespace (bool, optional): [description]. Defaults to False.
-        preprocess_fn (Callable, optional): [description]. Defaults to None.
         transforms (Callable, optional): [description]. Defaults to None.
     """
     self._config = config
@@ -58,38 +37,24 @@ class NAMDataset(torch.utils.data.Dataset):
     self.targets_column = targets_column
     self.weights_column = weights_column
 
-    if isinstance(csv_file, str):
-      self.data = pd.read_csv(
-          csv_file,
-          header=header,
-          names=names,
-          delim_whitespace=delim_whitespace,
-      )
-    else:
-      self.data = csv_file
+    ## Read and handle NANs in the dataframe
+    self.data = read_dataset(file_path)
 
-    if preprocess_fn is not None:
-      self.data = preprocess_fn(self.data)
-
-    self.features = torch.tensor(
-        self.data[features_columns].copy().to_numpy()).float()
-
-    if torch.isnan(self.features).any():
-      raise InterruptedError('Dataset features columns contains NAN values')
-
-    if one_hot:
-      self.oh_encoder = OneHotEncoder()
-      self.targets = torch.tensor(
-          self.oh_encoder.fit_transform(
-              self.data[targets_column].copy()).toarray())
-      self.categories = self.oh_encoder.categories_
-    else:
-      self.targets = torch.tensor(
-          self.data[targets_column].copy().to_numpy()).float()
-
+    self.features = self.data[features_columns].copy()
+    self.targets = self.data[targets_column].copy()
     if weights_column is not None:
       self.weights = torch.tensor(
           self.data[weights_column].copy().to_numpy()).float()
+
+    self.features, self.column_names = transform_data(self.features)
+    self.features = torch.tensor(self.features)
+
+    if (not config.regression) and (not isinstance(self.targets, np.ndarray)):
+      self.targets = pd.get_dummies(self.targets).values
+      self.targets = torch.tensor(
+          np.argmax(self.targets, axis=-1).astype('float32'))
+    else:
+      self.targets = torch.tensor(self.targets.to_numpy().astype('float32'))
 
     self.transforms = transforms
 
