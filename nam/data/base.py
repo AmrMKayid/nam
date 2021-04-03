@@ -51,8 +51,7 @@ class NAMDataset(torch.utils.data.Dataset):
 
     if (not config.regression) and (not isinstance(self.targets, np.ndarray)):
       self.targets = pd.get_dummies(self.targets).values
-      self.targets = torch.tensor(
-          np.argmax(self.targets, axis=-1).astype('float32'))
+      self.targets = torch.tensor(np.argmax(self.targets, axis=-1)).long()
     else:
       self.targets = torch.tensor(self.targets.to_numpy().astype('float32'))
 
