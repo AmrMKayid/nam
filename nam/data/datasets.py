@@ -73,7 +73,7 @@ def load_gallup_data(
 ) -> Dict:
 
   ## TODO: multi-classification
-  config.regression = True  #False
+  config.regression = False
 
   return FoldedDataset(
       config=config,
