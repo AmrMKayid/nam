@@ -3,8 +3,6 @@ import torch.nn as nn
 
 from nam.models.base import Model
 
-from .utils import init_weights
-
 
 class DNN(Model):
 

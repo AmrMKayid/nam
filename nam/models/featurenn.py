@@ -6,7 +6,6 @@ from nam.models.base import Model
 
 from .activation import ExU
 from .activation import LinReLU
-from .utils import init_weights
 
 
 class FeatureNN(Model):

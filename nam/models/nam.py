@@ -59,12 +59,20 @@ class NAM(Model):
         for index, input_i in enumerate(inputs_tuple)
     ]
 
-  def forward(self, inputs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+  def forward(
+      self,
+      inputs: torch.Tensor,
+      weights: torch.Tensor = torch.tensor(1),
+  ) -> Tuple[torch.Tensor, torch.Tensor]:
     individual_outputs = self.calc_outputs(inputs)
-    stacked_out = torch.stack(individual_outputs, dim=-1)
+    stacked_out = torch.stack(individual_outputs, dim=-1).squeeze()
     dropout_out = F.dropout(stacked_out, p=self.config.feature_dropout)
     if self._num_outputs:
-      return self.linear(dropout_out) + self._bias, dropout_out
+      logits = self.linear(dropout_out) + self._bias
+      # logits *= torch.repeat_interleave(weights,
+      #                                   logits.shape[-1]).view(logits.shape)
+      preds = F.softmax(logits, dim=-1)
+      return preds, dropout_out
 
     out = torch.sum(dropout_out, dim=-1)
-    return out + self._bias, dropout_out
+    return (out + self._bias).squeeze(), dropout_out
