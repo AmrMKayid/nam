@@ -17,8 +17,11 @@ class Engine(pl.LightningModule):
     self.config = config
     self.model = model
 
-    self.criterion = lambda inputs, targets, fnns_out: penalized_loss(
-        self.config, inputs, targets, fnns_out)
+    self.criterion = lambda inputs, targets, weights, fnns_out: penalized_loss(
+        self.config, inputs, targets, weights, fnns_out)
+
+    self.metrics = pl.metrics.MeanAbsoluteError() if config.regression \
+                    else pl.metrics.Accuracy()
 
     self.save_hyperparameters(vars(self.config))
 
@@ -41,31 +44,43 @@ class Engine(pl.LightningModule):
 
   def training_step(self, batch, batch_idx):
     inputs, targets, *weights = batch
+    weights = weights.pop() if weights else torch.tensor(1)
 
-    logits, fnns_out = self.model(inputs)
-    loss = self.criterion(logits, targets, fnns_out)
+    logits, fnns_out = self.model(inputs, weights)
+    loss = self.criterion(logits, targets, weights, fnns_out)
 
-    self.log('train_loss',
-             loss,
+    self.log('train_loss', loss, on_step=True, \
+              on_epoch=True, prog_bar=True, logger=True)
+
+    self.log('train_acc_step',
+             self.metrics(logits, targets),
              on_step=True,
-             on_epoch=True,
              prog_bar=True,
-             logger=True)
+             logger=True,
+             on_epoch=False)
 
     return loss  #{'training_loss': loss}
 
+  def training_epoch_end(self, outs):
+    # log epoch metric
+    self.log('train_acc_epoch', self.metrics.compute(), prog_bar=True)
+
   def validation_step(self, batch, batch_idx):
     inputs, targets, *weights = batch
+    weights = weights.pop() if weights else torch.tensor(1)
 
-    logits, fnns_out = self.model(inputs)
-    loss = self.criterion(logits, targets, fnns_out)
+    logits, fnns_out = self.model(inputs, weights)
+    loss = self.criterion(logits, targets, weights, fnns_out)
 
-    self.log('val_loss',
-             loss,
+    self.log('val_loss', loss, on_step=True, \
+              on_epoch=True, prog_bar=True, logger=True)
+
+    self.log('valid_acc',
+             self.metrics(logits, targets),
              on_step=True,
-             on_epoch=True,
              prog_bar=True,
-             logger=True)
+             logger=True,
+             on_epoch=True)
 
     return {'val_loss': loss}
 
@@ -73,7 +88,7 @@ class Engine(pl.LightningModule):
     inputs, targets, *weights = batch
 
     logits, fnns_out = self.model(inputs)
-    loss = self.criterion(logits, targets, fnns_out)
+    loss = self.criterion(logits, targets, weights, fnns_out)
 
     self.log('test_loss',
              loss,
@@ -81,5 +96,12 @@ class Engine(pl.LightningModule):
              on_epoch=True,
              prog_bar=True,
              logger=True)
+
+    self.log('test_acc',
+             self.metrics(logits, targets),
+             on_step=True,
+             prog_bar=True,
+             logger=True,
+             on_epoch=True)
 
     return {'test_loss': loss}

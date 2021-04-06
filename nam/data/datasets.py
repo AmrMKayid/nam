@@ -1,11 +1,11 @@
 from typing import Dict
 
+import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.datasets import load_breast_cancer
 
 from nam.config import defaults
-from nam.data.base import NAMDataset
 from nam.data.folded import FoldedDataset
 
 cfg = defaults()
@@ -74,10 +74,12 @@ def load_gallup_data(
 
   ## TODO: multi-classification
   config.regression = False
+  data = pd.read_csv(gallup_path)
+  data["WP16"] = np.where(data["WP16"] < 6, 0, 1)
 
   return FoldedDataset(
       config=config,
-      file_path=gallup_path,
+      file_path=data,
       features_columns=features_columns,
       targets_column=targets_column,
       weights_column=weights_column,
