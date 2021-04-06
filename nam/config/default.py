@@ -7,7 +7,7 @@ def defaults() -> Config:
   config = Config(
       device='cuda' if torch.cuda.is_available() else 'cpu',
       output_dir="output",
-      training_epochs=10,
+      training_epochs=3,
       lr=1e-2,
       batch_size=1024,
 
@@ -43,6 +43,9 @@ def defaults() -> Config:
       patience=10,  ## For early stopping
       n_folds=5,
       num_workers=16,  ## for dataloaders
+
+      ## Spliting into train, test dataset
+      test_split=0.2,
   )
 
   return config
