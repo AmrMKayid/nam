@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from nam.types import Config
 
 
-def bce_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+def ce_loss(probs: torch.Tensor, targets: torch.Tensor,
+            weights: torch.tensor) -> torch.Tensor:
   """Cross entropy loss for binary classification.
 
   Args:
@@ -15,17 +16,14 @@ def bce_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
   Returns:
     Binary Cross-entropy loss between model predictions and the targets.
   """
-  return F.binary_cross_entropy_with_logits(logits.view(-1), targets.view(-1))
+  # print(probs)
+  # print(weights)
+  # weighted_probs = probs * weights
+  return F.cross_entropy(probs, targets.view(-1))
 
 
-## TODO(amr): CE for multi-class
-# print(logits.shape, targets.shape)
-# print(logits.view(-1).shape, targets.view(-1).shape)
-# return F.cross_entropy(logits.squeeze(),
-#                        targets.long().view(-1))
-
-
-def mse_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+def mse_loss(logits: torch.Tensor, targets: torch.Tensor,
+             weights: torch.tensor) -> torch.Tensor:
   """Mean squared error loss for regression."""
   return F.mse_loss(logits.view(-1), targets.view(-1))
 
@@ -40,6 +38,7 @@ def weight_decay(
 
 
 def penalized_loss(config: Config, logits: torch.Tensor, targets: torch.Tensor,
+                   weights: torch.tensor,
                    fnn_out: torch.Tensor) -> torch.Tensor:
   """Computes penalized loss with L2 regularization and output penalty.
 
@@ -55,11 +54,11 @@ def penalized_loss(config: Config, logits: torch.Tensor, targets: torch.Tensor,
 
   def features_loss(per_feature_outputs: torch.Tensor) -> torch.Tensor:
     """Penalizes the L2 norm of the prediction of each feature net."""
-    return config.output_regularization * (
-        per_feature_outputs**2).sum() / per_feature_outputs.shape[1]
+    return (config.output_regularization * (per_feature_outputs**2).sum() /
+            per_feature_outputs.shape[1])
 
-  loss_func = mse_loss if config.regression else bce_loss
-  loss = loss_func(logits, targets)
+  loss_func = mse_loss if config.regression else ce_loss
+  loss = loss_func(logits, targets, weights)
 
   return loss + features_loss(fnn_out)
 
