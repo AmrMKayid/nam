@@ -7,5 +7,6 @@ clean:
 
 format:
 	yapf --verbose --in-place --recursive ${PYTHON_MODULE_PATH} --style='{based_on_style: google, indent_width:2, column_limit:80}'
+	autoflake --in-place  --remove-all-unused-imports --expand-star-imports --ignore-init-module-imports -r ${PYTHON_MODULE_PATH}
 	isort --verbose --force-single-line-imports ${PYTHON_MODULE_PATH}
 	docformatter --in-place --recursive ${PYTHON_MODULE_PATH}
