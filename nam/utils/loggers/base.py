@@ -1,7 +1,5 @@
 """Base logger, borrowed from DeepMind"s Acme."""
 
-import abc
-import sys
 from typing import Any
 from typing import Mapping
 
