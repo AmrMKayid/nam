@@ -6,130 +6,182 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import seaborn
 
 
-def get_unique_features(X_train: torch.Tensor) -> Tuple[torch.Tensor, ...]:
-  unique_features = []
-  features = []
-  for feature_i in range(len(X_train[0])):
-    features.append(X_train[:, feature_i])
-    unique_features.append(torch.unique(features[-1]))
-  return unique_features, features
-
-
-def get_model_outputs(
-    unique_features: torch.Tensor,
+def get_feature_contributions(
     model: torch.nn.Module,
+    dataset: torch.utils.data.Dataset,
 ) -> Sequence[torch.Tensor]:
 
   feature_contributions = []
-  for feature_i in range(len(unique_features)):
-    feature_contributions.append(
-        dict(model.feature_nns.named_children())[f"FeatureNN_{feature_i}"](
-            torch.unsqueeze(unique_features[feature_i], 1)))
+  unique_features = dataset.unique_features
+  for i, feature in enumerate(unique_features):
+    feature = torch.tensor(feature).float()
+    feat_contribution = model.feature_nns[i](feature).detach().numpy().squeeze()
+    feature_contributions.append(feat_contribution)
+
   return feature_contributions
 
 
-def shade_by_density_blocks(
-    ax: matplotlib.axes.SubplotBase,
-    single_feature_data: np.ndarray,
-    unique_x_data: np.ndarray,
-    n_blocks: int = 50,
-    color: list = [0.9, 0.5, 0.5],
-) -> None:
-  min_y, max_y = ax.get_ylim()
-  min_x = np.min(single_feature_data)
-  max_x = np.max(single_feature_data)
-  x_n_blocks = min(n_blocks, len(unique_x_data))
-  segments = (max_x - min_x) / x_n_blocks
-  density = np.histogram(single_feature_data, bins=x_n_blocks)
-  normed_density = density[0] / np.max(density[0])
-  rect_params = []
-  for p in range(x_n_blocks):
-    start_x = min_x + segments * p
-    end_x = min_x + segments * (p + 1)
-    d = min(1.0, 0.01 + normed_density[p])
-    rect_params.append((d, start_x, end_x))
+def calc_mean_prediction(
+    model: torch.nn.Module,
+    dataset: torch.utils.data.Dataset,
+) -> Sequence[np.ndarray, dict]:
+  #@title Calculate the mean prediction
 
-  for param in rect_params:
-    alpha, start_x, end_x = param
-    rect = patches.Rectangle(
-        (start_x, min_y - 1),
-        end_x - start_x,
-        max_y - min_y + 1,
-        linewidth=0.01,
-        edgecolor=color,
-        facecolor=color,
-        alpha=alpha,
-    )
-    ax.add_patch(rect)
+  feature_contributions = get_feature_contributions(model, dataset)
+  avg_hist_data = {
+      col: contributions for col, contributions in zip(dataset.features_names,
+                                                       feature_contributions)
+  }
+  all_indices, mean_pred = {}, {}
+
+  for i, col in enumerate(dataset.features_names):
+    feature_i = dataset.features[:, i]
+    all_indices[col] = np.searchsorted(dataset.unique_features[i][:, 0],
+                                       feature_i, 'left')
+  for col in dataset.features_names:
+    mean_pred[col] = np.mean([avg_hist_data[col][i] for i in all_indices[col]])
+
+  return mean_pred, avg_hist_data
 
 
-def plot_line(
-    ax: matplotlib.axes.SubplotBase,
-    unique_features: np.ndarray,
-    feature_contributions: np.ndarray,
-    alpha: float = 0.5,
-    color_base: list = [0.3, 0.4, 0.9, 0.2],
-) -> None:
-  feature_contributions = feature_contributions - np.mean(feature_contributions)
-  if len(unique_features) < 10:
-    unique_features = np.round(unique_features, decimals=1)
-    if len(unique_features) <= 2:
-      step_loc = "mid"
-    else:
-      step_loc = "post"
-    ax.step(
-        unique_features,
-        feature_contributions,
-        color=color_base,
-        alpha=alpha,
-        where=step_loc,
-    )
-  else:
-    ax.plot(
-        unique_features,
-        feature_contributions,
-        color=color_base,
-        alpha=alpha,
-    )
+def plot_mean_feature_importance(model: torch.nn.Module,
+                                 dataset: torch.utils.data.Dataset,
+                                 width=0.5):
+
+  mean_pred, avg_hist_data = calc_mean_prediction(model, dataset)
+
+  def compute_mean_feature_importance(mean_pred, avg_hist_data):
+    mean_abs_score = {}
+    for k in avg_hist_data:
+      try:
+        mean_abs_score[k] = np.mean(np.abs(avg_hist_data[k] - mean_pred[k]))
+      except:
+        continue
+    x1, x2 = zip(*mean_abs_score.items())
+    return x1, x2
+
+  ## TODO: rename x1 and x2
+  x1, x2 = compute_mean_feature_importance(mean_pred, avg_hist_data)
+
+  cols = dataset.features_names
+  fig = plt.figure(figsize=(5, 5))
+  ind = np.arange(len(x1))
+  x1_indices = np.argsort(x2)
+
+  cols_here = [cols[i] for i in x1_indices]
+  x2_here = [x2[i] for i in x1_indices]
+
+  plt.bar(ind, x2_here, width, label='NAMs')
+  plt.xticks(ind + width / 2, cols_here, rotation=90, fontsize='large')
+  plt.ylabel('Mean Absolute Score', fontsize='x-large')
+  plt.legend(loc='upper right', fontsize='large')
+  plt.title(f'Overall Importance', fontsize='x-large')
+  plt.show()
+
+  return fig
 
 
-def nam_plot(
-    dataset: torch.Tensor,
-    models: Sequence[torch.nn.Module],
-    n_columns: int = 3,
-) -> None:
-  raw_features = dataset.features
-  n_rows = int(np.ceil(len(raw_features[0]) / n_columns))
-  unique_features, features = get_unique_features(raw_features)
-  unique_model_outputs = [
-      get_model_outputs(unique_features, model) for model in models
-  ]
+def plot_nams(model: torch.nn.Module,
+              dataset: torch.utils.data.Dataset,
+              num_cols: int = 2,
+              n_blocks: int = 40,
+              color: list = [0.4, 0.5, 0.9],
+              linewidth: float = 5.0,
+              alpha: float = 1.0,
+              feature_to_use: list = None):
 
-  fig, axs = plt.subplots(
-      n_columns,
-      n_rows,
-      figsize=(5 * n_rows, 5 * n_columns),
-  )
+  unique_features_org, single_features_org = dataset.ufo, dataset.sfo
+  mean_pred, feat_data_contrib = calc_mean_prediction(model, dataset)
+
+  num_rows = len(dataset.features[0]) // num_cols
+
+  fig = plt.figure(num=None,
+                   figsize=(num_cols * 7, num_rows * 7),
+                   facecolor='w',
+                   edgecolor='k')
   fig.tight_layout(pad=5.0)
 
-  for i in range(n_columns * n_rows):
-    ax = axs.reshape(-1)[i]
-    if i < len(unique_features):
-      for m in range(len(unique_model_outputs)):
-        plot_line(
-            ax,
-            unique_features[i].detach().numpy(),
-            unique_model_outputs[m][i].detach().numpy(),
-            alpha=4 / len(models),
-        )
-      shade_by_density_blocks(
-          ax,
-          features[i].detach().numpy(),
-          unique_features[i].detach().numpy(),
+  feat_data_contrib_pairs = list(feat_data_contrib.items())
+  feat_data_contrib_pairs.sort(key=lambda x: x[0])
+
+  mean_pred_pairs = list(mean_pred.items())
+  mean_pred_pairs.sort(key=lambda x: x[0])
+
+  if feature_to_use:
+    feat_data_contrib_pairs = [
+        v for v in feat_data_contrib_pairs if v[0] in feature_to_use
+    ]
+
+  min_y = np.min([np.min(a[1]) for a in feat_data_contrib_pairs])
+  max_y = np.max([np.max(a[1]) for a in feat_data_contrib_pairs])
+
+  min_max_dif = max_y - min_y
+  min_y = min_y - 0.01 * min_max_dif
+  max_y = max_y + 0.01 * min_max_dif
+
+  total_mean_bias = 0
+
+  def shade_by_density_blocks(color: list = [0.9, 0.5, 0.5]):
+    single_feature_data = single_features_org[name]
+    x_n_blocks = min(n_blocks, len(unique_feat_data))
+
+    segments = (max_x - min_x) / x_n_blocks
+    density = np.histogram(single_feature_data, bins=x_n_blocks)
+    normed_density = density[0] / np.max(density[0])
+    rect_params = []
+
+    for p in range(x_n_blocks):
+      start_x = min_x + segments * p
+      end_x = min_x + segments * (p + 1)
+      d = min(1.0, 0.01 + normed_density[p])
+      rect_params.append((d, start_x, end_x))
+
+    for param in rect_params:
+      alpha, start_x, end_x = param
+      rect = patches.Rectangle(
+          (start_x, min_y - 1),
+          end_x - start_x,
+          max_y - min_y + 1,
+          linewidth=0.01,
+          edgecolor=color,
+          facecolor=color,
+          alpha=alpha,
       )
-      ax.set_xlabel(dataset.features_names[i])
-      ax.set_ylabel(dataset.targets_column)
-    else:
-      ax.set_visible(False)
+      ax.add_patch(rect)
+
+  for i, (name, feat_contrib) in enumerate(feat_data_contrib_pairs):
+    mean_pred = mean_pred_pairs[i][1]
+    total_mean_bias += mean_pred
+
+    unique_feat_data = unique_features_org[name]
+    ax = plt.subplot(num_rows, num_cols, i + 1)
+
+    ## TODO: CATEGORICAL_NAMES if..else
+    plt.plot(unique_feat_data,
+             feat_contrib - mean_pred,
+             color=color,
+             linewidth=linewidth,
+             alpha=alpha)
+
+    plt.xticks(fontsize='x-large')
+
+    plt.ylim(min_y, max_y)
+    plt.yticks(fontsize='x-large')
+
+    min_x = np.min(unique_feat_data) - 0.5  ## for categorical
+    max_x = np.max(unique_feat_data) + 0.5
+    plt.xlim(min_x, max_x)
+
+    shade_by_density_blocks()
+
+    if i % num_cols == 0:
+      plt.ylabel('Features Contribution', fontsize='x-large')
+
+    plt.xlabel(name, fontsize='x-large')
+
+  plt.show()
+
+  return fig
