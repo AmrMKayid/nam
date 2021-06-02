@@ -6,7 +6,7 @@ with open("README.md", "r") as f:
 
 setup(
     name='nam',
-    version='0.0.1',
+    version='0.0.2',
     description="Neural Additive Models (Google Research)",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -15,6 +15,13 @@ setup(
     packages=find_packages(),
     install_requires=[
         "torch==1.7.0",
+        "pytorch-lightning",
+        "wandb",
+        "matplotlib",
+        "sklearn",
+        "numpy",
+        "pandas",
+        "loguru",
     ],
     classifiers=[
         "Programming Language :: Python :: 3.6",
