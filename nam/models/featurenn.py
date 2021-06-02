@@ -31,6 +31,7 @@ class FeatureNN(Model):
         self._input_shape = input_shape
         self._num_units = num_units
         self._feature_num = feature_num
+        self.dropout = nn.Dropout(p=self.config.dropout)
 
         hidden_sizes = [self._num_units] + self.config.hidden_sizes
 
@@ -57,5 +58,5 @@ class FeatureNN(Model):
         mode."""
         outputs = inputs.unsqueeze(1)
         for layer in self.model:
-            outputs = F.dropout(layer(outputs), p=self.config.dropout)
+            outputs = self.dropout(layer(outputs))
         return outputs

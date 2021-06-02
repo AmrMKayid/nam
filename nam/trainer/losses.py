@@ -39,7 +39,7 @@ def penalized_loss(config: Config, logits: torch.Tensor, targets: torch.Tensor, 
 
     def features_loss(per_feature_outputs: torch.Tensor) -> torch.Tensor:
         """Penalizes the L2 norm of the prediction of each feature net."""
-        return (config.output_regularization * (per_feature_outputs**2).sum() / per_feature_outputs.shape[1])
+        return (config.output_regularization * (per_feature_outputs**2).sum() / len(per_feature_outputs))
 
     def weight_decay(model: nn.Module) -> torch.Tensor:
         """Penalizes the L2 norm of weights in each feature net."""

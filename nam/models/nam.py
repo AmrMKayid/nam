@@ -22,6 +22,7 @@ class NAM(Model):
         super(NAM, self).__init__(config, name)
 
         self._num_inputs = num_inputs
+        self.dropout = nn.Dropout(p=self.config.dropout)
 
         if isinstance(num_units, list):
             assert len(num_units) == num_inputs
@@ -44,7 +45,7 @@ class NAM(Model):
     def forward(self, inputs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         individual_outputs = self.calc_outputs(inputs)
         conc_out = torch.cat(individual_outputs, dim=-1)
-        dropout_out = F.dropout(conc_out, p=self.config.feature_dropout, inplace=True)
+        dropout_out = self.dropout(conc_out)
 
         out = torch.sum(dropout_out, dim=-1)
         return out + self._bias, dropout_out
