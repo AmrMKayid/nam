@@ -14,27 +14,26 @@ def defaults() -> Config:
         regression=False,
 
         ## training
-        num_epochs=1,
-        lr=3e-4,
-        batch_size=1024,
+        num_epochs=10,
+        lr=1e-2,
+        batch_size=128,
 
         ## logs
         logdir="output",
-        wandb=True,
+        wandb=False,
 
         ## Hidden size for layers
-        hidden_sizes=[64, 32],
+        hidden_sizes=[],  #[64, 32],
 
         ## Activation choice
         activation='exu',  ## Either `ExU` or `Relu`
-        optimizer='adam',
 
         ## regularization_techniques
-        dropout=0.5,
-        feature_dropout=0.5,
+        dropout=0.1,
+        feature_dropout=0.1,  #0.5,
         decay_rate=0.995,
-        l2_regularization=0.5,
-        output_regularization=0.5,
+        l2_regularization=0.1,
+        output_regularization=0.1,
 
         ## Num units for FeatureNN
         num_basis_functions=1000,

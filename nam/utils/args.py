@@ -4,7 +4,7 @@ import argparse
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Neural Additive Models")
 
-    parser.add_argument('--num_epochs', default=1, type=int, help='The number of epochs to run training for.')
+    parser.add_argument('--num_epochs', default=10, type=int, help='The number of epochs to run training for.')
 
     parser.add_argument('--learning_rate', default=1e-2, type=float, help='Hyperparameter: learning rate.')
 
