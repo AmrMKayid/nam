@@ -14,7 +14,7 @@ setup(
     url="https://github.com/AmrMKayid/nam",
     packages=find_packages(),
     install_requires=[
-        "torch==1.7.0",
+        "torch",
         "pytorch-lightning",
         "wandb",
         "matplotlib",
