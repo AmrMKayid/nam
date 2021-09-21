@@ -14,6 +14,7 @@ from nam.trainer.losses import penalized_loss
 from nam.trainer.metrics import accuracy
 from nam.trainer.metrics import mae
 from nam.utils.loggers import TensorBoardLogger
+from ray import tune
 
 
 class Trainer:
@@ -38,8 +39,8 @@ class Trainer:
         if config.wandb:
             wandb.watch(models=self.model, log='all', log_freq=10)
 
-        self.dataloader_train, self.dataloader_val, \
-          self.dataloader_test = self.dataset.get_dataloaders()
+        self.dataloader_train, self.dataloader_val = self.dataset.train_dataloaders()
+        self.dataloader_test = self.dataset.test_dataloaders()
 
     def train_step(self, model: nn.Module, optimizer: optim.Optimizer, batch: torch.Tensor) -> torch.Tensor:
         """Performs a single gradient-descent optimization step."""
@@ -139,6 +140,8 @@ class Trainer:
                 # Checkpoints model weights.
                 if epoch % self.config.save_model_frequency == 0:
                     self.checkpointer.save(epoch)
+
+                tune.report(loss=loss_val,)
 
                 # Updates progress bar description.
                 pbar_epoch.set_description(f"""Epoch({epoch}):

@@ -39,20 +39,23 @@ def penalized_loss(config: Config, logits: torch.Tensor, targets: torch.Tensor, 
 
     def features_loss(per_feature_outputs: torch.Tensor) -> torch.Tensor:
         """Penalizes the L2 norm of the prediction of each feature net."""
-        return (config.output_regularization * (per_feature_outputs**2).sum() / len(per_feature_outputs))
+        per_feature_norm = [  # L2 Regularization
+            torch.mean(torch.square(outputs)) for outputs in per_feature_outputs
+        ]
+        return sum(per_feature_norm) / len(per_feature_norm)
 
     def weight_decay(model: nn.Module) -> torch.Tensor:
         """Penalizes the L2 norm of weights in each feature net."""
         num_networks = 1 if config.use_dnn else len(model.feature_nns)
-        l2_losses = torch.as_tensor([((x**2).sum() / 2) for x in model.parameters()])
-        return torch.sum(l2_losses) / num_networks
+        l2_losses = [(x**2).sum() for x in model.parameters()]
+        return sum(l2_losses) / num_networks
 
     loss_func = mse_loss if config.regression else bce_loss
     loss = loss_func(logits, targets, weights)
 
     reg_loss = 0.0
     if config.output_regularization > 0:
-        reg_loss += features_loss(fnn_out)
+        reg_loss += config.output_regularization * features_loss(fnn_out)
 
     if config.l2_regularization > 0:
         reg_loss += config.l2_regularization * weight_decay(model)

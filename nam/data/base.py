@@ -123,7 +123,7 @@ class NAMDataset(CSVDataset):
         self.test_dl = DataLoader(test_subset, batch_size=self.config.batch_size, shuffle=False)
 
     def train_dataloaders(self) -> Tuple[DataLoader, ...]:
-        yield self.train_dl, self.val_dl
+        return self.train_dl, self.val_dl
 
     def test_dataloaders(self) -> DataLoader:
         return self.test_dl
