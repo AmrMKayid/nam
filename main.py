@@ -1,105 +1,169 @@
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
+import copy
+import logging
+import os
+import random
 
-from nam.config import defaults
-from nam.data import FoldedDataset
-from nam.data import NAMDataset
-from nam.models import NAM
-from nam.models import get_num_units
-from nam.trainer import LitNAM
-from nam.types import Config
-from nam.utils import parse_args
-from nam.utils import plot_mean_feature_importance
-from nam.utils import plot_nams
+import tqdm
+from absl import app
+from absl import flags
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
+
+import nam.data
+import nam.metrics
+from nam.model import ExULayer
+from nam.model import NeuralAdditiveModel
+from nam.model import ReLULayer
+from nam.model import torch
+
+FLAGS = flags.FLAGS
+
+flags.DEFINE_integer("training_epochs", 10, "The number of epochs to run training for.")
+flags.DEFINE_float("learning_rate", 0.00674, "Hyperparameter: learning rate.")
+flags.DEFINE_float("output_regularization", 0.01, "Hyperparameter: feature reg")
+flags.DEFINE_float("l2_regularization", 1e-3, "Hyperparameter: l2 weight decay")
+flags.DEFINE_integer("batch_size", 2048, "Hyperparameter: batch size.")
+flags.DEFINE_string("log_file", None, "File where to store summaries.")
+flags.DEFINE_string("dataset", "sklearn_housing", "Name of the dataset to load for training.")
+flags.DEFINE_float("decay_rate", 0.995, "Hyperparameter: Optimizer decay rate")
+flags.DEFINE_float("dropout", 0.0, "Hyperparameter: Dropout rate")
+flags.DEFINE_integer("data_split", 1, "Dataset split index to use. Possible values are 1 to `FLAGS.num_splits`.")
+flags.DEFINE_integer("seed", 1, "Seed used for reproducibility.")
+flags.DEFINE_float("feature_dropout", 0.75, "Hyperparameter: Prob. with which features are dropped")
+flags.DEFINE_integer("n_basis_functions", 64,
+                     "Number of basis functions to use in a FeatureNN for a real-valued feature.")
+flags.DEFINE_integer("units_multiplier", 2, "Number of basis functions for a categorical feature")
+flags.DEFINE_integer("n_models", 1, "the number of models to train.")
+flags.DEFINE_integer("n_splits", 3, "Number of data splits to use")
+flags.DEFINE_integer("id_fold", 1, "Index of the fold to be used")
+flags.DEFINE_list("hidden_units", [128, 64, 32, 32], "Amounts of neurons for additional hidden layers, e.g. 64,32,32")
+flags.DEFINE_string("shallow_layer", "exu", "Activation function used for the first layer: (1) relu, (2) exu")
+flags.DEFINE_string("hidden_layer", "relu", "Activation function used for the hidden layers: (1) relu, (2) exu")
+flags.DEFINE_boolean("regression", True, "Boolean for regression or classification")
+flags.DEFINE_integer("early_stopping_epochs", 60, "Early stopping epochs")
+_N_FOLDS = 5
 
 
-def get_config() -> Config:
-    args = parse_args()
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-    config = defaults()
-    config.update(**vars(args))
 
-    return config
+def train_model(x_train, y_train, x_validate, y_validate, device):
+    model = NeuralAdditiveModel(input_size=x_train.shape[-1],
+                                shallow_units=nam.data.calculate_n_units(x_train, FLAGS.n_basis_functions,
+                                                                         FLAGS.units_multiplier),
+                                hidden_units=list(map(int, FLAGS.hidden_units)),
+                                shallow_layer=ExULayer if FLAGS.shallow_layer == "exu" else ReLULayer,
+                                hidden_layer=ExULayer if FLAGS.hidden_layer == "exu" else ReLULayer,
+                                hidden_dropout=FLAGS.dropout,
+                                feature_dropout=FLAGS.feature_dropout).to(device)
+
+    print(x_train.shape[-1], nam.data.calculate_n_units(x_train, FLAGS.n_basis_functions, FLAGS.units_multiplier),
+          list(map(int, FLAGS.hidden_units)), ExULayer if FLAGS.shallow_layer == "exu" else ReLULayer,
+          ExULayer if FLAGS.hidden_layer == "exu" else ReLULayer, FLAGS.dropout, FLAGS.feature_dropout)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=FLAGS.learning_rate, weight_decay=FLAGS.l2_regularization)
+    criterion = nam.metrics.penalized_mse if FLAGS.regression else nam.metrics.penalized_cross_entropy
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, gamma=0.995, step_size=1)
+
+    train_dataset = TensorDataset(torch.tensor(x_train), torch.tensor(y_train))
+    train_loader = DataLoader(train_dataset, batch_size=FLAGS.batch_size, shuffle=True)
+    validate_dataset = TensorDataset(torch.tensor(x_validate), torch.tensor(y_validate))
+    validate_loader = DataLoader(validate_dataset, batch_size=FLAGS.batch_size, shuffle=True)
+
+    n_tries = FLAGS.early_stopping_epochs
+    best_validation_score, best_weights = 0, None
+
+    for epoch in range(FLAGS.training_epochs):
+        model = model.train()
+        total_loss = train_one_epoch(model, criterion, optimizer, train_loader, device)
+        logging.info(f"epoch {epoch} | train | {total_loss=}")
+
+        scheduler.step()
+
+        model = model.eval()
+        metric, val_score = evaluate(model, validate_loader, device)
+        logging.info(f"epoch {epoch} | validate | {metric}={val_score}")
+
+        # early stopping
+        if val_score <= best_validation_score and n_tries > 0:
+            n_tries -= 1
+            continue
+        elif val_score <= best_validation_score:
+            logging.info(f"early stopping at epoch {epoch}")
+            break
+        best_validation_score = val_score
+        best_weights = copy.deepcopy(model.state_dict())
+
+    model.load_state_dict(best_weights)
+
+    return model
 
 
-def main():
-    config = get_config()
-    pl.seed_everything(config.seed)
+def train_one_epoch(model, criterion, optimizer, data_loader, device):
+    pbar = tqdm.tqdm(enumerate(data_loader, start=1), total=len(data_loader))
+    total_loss = 0
+    for i, (x, y) in pbar:
+        x, y = x.to(device), y.to(device)
+        logits, fnns_out = model.forward(x)
+        loss = criterion(logits, y, fnns_out, feature_penalty=FLAGS.output_regularization)
+        total_loss -= (total_loss / i) - (loss.item() / i)
+        model.zero_grad()
+        loss.backward()
+        optimizer.step()
+        pbar.set_description(f"train | loss = {total_loss:.5f}")
+    return total_loss
 
-    print(config)
-    exit()
 
-    if config.cross_val:
-        dataset = FoldedDataset(
-            config,
-            data_path=config.data_path,
-            features_columns=["income_2", "WP1219", "WP1220", "year", "weo_gdpc_con_ppp"],
-            targets_column="WP16",
-            weights_column="wgt",
-        )
-        dataloaders = dataset.train_dataloaders()
+def evaluate(model, data_loader, device):
+    total_score = 0
+    metric = None
+    for i, (x, y) in enumerate(data_loader, start=1):
+        x, y = x.to(device), y.to(device)
+        logits, fnns_out = model.forward(x)
+        metric, score = nam.metrics.calculate_metric(logits, y, regression=FLAGS.regression)
+        total_score -= (total_score / i) - (score / i)
+    return metric, total_score
 
-        model = NAM(
-            config=config,
-            name=config.experiment_name,
-            num_inputs=len(dataset[0][0]),
-            num_units=get_num_units(config, dataset.features),
-        )
 
-        for fold, (trainloader, valloader) in enumerate(dataloaders):
+def main(args):
+    seed_everything(FLAGS.seed)
 
-            # Folder hack
-            tb_logger = TensorBoardLogger(save_dir=config.logdir, name=f'{model.name}', version=f'fold_{fold + 1}')
+    handlers = [logging.StreamHandler()]
+    if FLAGS.log_file:
+        handlers.append(logging.FileHandler(FLAGS.log_file))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=handlers)
 
-            checkpoint_callback = ModelCheckpoint(filename=tb_logger.log_dir + "/{epoch:02d}-{val_loss:.4f}",
-                                                  monitor='val_loss',
-                                                  save_top_k=config.save_top_k,
-                                                  mode='min')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logging.info("load data")
+    train, (x_test, y_test) = nam.data.create_test_train_fold(dataset=FLAGS.dataset,
+                                                              id_fold=FLAGS.id_fold,
+                                                              n_folds=_N_FOLDS,
+                                                              n_splits=FLAGS.n_splits,
+                                                              regression=not FLAGS.regression)
+    test_dataset = TensorDataset(torch.tensor(x_test), torch.tensor(y_test))
+    test_loader = DataLoader(test_dataset, batch_size=FLAGS.batch_size, shuffle=True)
 
-            litmodel = LitNAM(config, model)
-            trainer = pl.Trainer(logger=tb_logger,
-                                 max_epochs=config.num_epochs,
-                                 checkpoint_callback=checkpoint_callback)
-            trainer.fit(litmodel, train_dataloader=trainloader, val_dataloaders=valloader)
+    logging.info("begin training")
+    test_scores = []
+    while True:
+        try:
+            (x_train, y_train), (x_validate, y_validate) = next(train)
+            model = train_model(x_train, y_train, x_validate, y_validate, device)
+            metric, score = evaluate(model, test_loader, device)
+            test_scores.append(score)
+            logging.info(f"fold {len(test_scores)}/{FLAGS.n_splits} | test | {metric}={test_scores[-1]}")
+            torch.save(model.state_dict(), 'models/best3.pth')
+        except StopIteration:
+            break
 
-            plot_mean_feature_importance(litmodel.model, dataset)
-            plot_nams(litmodel.model, dataset, num_cols=1)
-            plt.show()
-
-    else:
-        dataset = NAMDataset(
-            config,
-            data_path=config.data_path,
-            features_columns=["income_2", "WP1219", "WP1220", "year", "weo_gdpc_con_ppp"],
-            targets_column="WP16",
-            weights_column="wgt",
-        )
-        trainloader, valloader, testloader = dataset.get_dataloaders()
-
-        model = NAM(
-            config=config,
-            name=config.experiment_name,
-            num_inputs=len(dataset[0][0]),
-            num_units=get_num_units(config, dataset.features),
-        )
-
-        # Folder hack
-        tb_logger = TensorBoardLogger(save_dir=config.logdir, name=f'{model.name}', version=f'0')
-
-        checkpoint_callback = ModelCheckpoint(filename=tb_logger.log_dir + "/{epoch:02d}-{val_loss:.4f}",
-                                              monitor='val_loss',
-                                              save_top_k=config.save_top_k,
-                                              mode='min')
-
-        litmodel = LitNAM(config, model)
-        trainer = pl.Trainer(logger=tb_logger, max_epochs=config.num_epochs, checkpoint_callback=checkpoint_callback)
-        trainer.fit(litmodel, train_dataloader=trainloader, val_dataloaders=valloader)
-
-        plot_mean_feature_importance(litmodel.model, dataset)
-        plot_nams(litmodel.model, dataset, num_cols=1)
-        plt.show()
+        logging.info(f"mean test score={test_scores[-1]}")
 
 
 if __name__ == "__main__":
-    main()
+    app.run(main)
